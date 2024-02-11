@@ -2,7 +2,7 @@ package today.astrum.visitor
 
 import today.astrum.ast.Expression
 
-class PrinterVisitor : ExpressionVisitor {
+class ExpressionPrinter : ExpressionVisitor {
     override fun visit(node: Expression.Grouping) {
         print("(")
         node.expression.accept(this)
@@ -26,5 +26,21 @@ class PrinterVisitor : ExpressionVisitor {
 
     override fun visit(node: Expression.Literal) {
         print(node.type)
+    }
+
+    override fun visit(node: Expression.PropertyAccess): Any {
+        TODO("Not yet implemented")
+    }
+
+    override fun visit(node: Expression.ObjectLiteral): Any {
+        TODO("Not yet implemented")
+    }
+
+    override fun visit(node: Expression.FunctionCall): Any {
+        return node
+    }
+
+    override fun visit(node: Expression.Index): Any {
+        TODO("Not yet implemented")
     }
 }

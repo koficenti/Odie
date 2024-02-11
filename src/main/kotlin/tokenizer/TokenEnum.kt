@@ -1,20 +1,31 @@
-package today.astrum
+package today.astrum.tokenizer
 
 enum class TokenEnum {
     Function,
     Let, Const, Var,
     If, Else, While, For,
+    Break, Continue,
     Return,
 
     Try, Catch, Finally,
 
     SingleQuote, DoubleQuote,
 
-    Number,
+    NullLiteral,
+    StringLiteral,
+    NumberLiteral,
+    FloatLiteral,
+    BooleanLiteral,
     Identifier,
     TypeIdentifier,
+    TrueLiteral,
+    FalseLiteral,
+    ObjectLiteral,
+    UndefinedLiteral,
+    ListLiteral,
 
     Pipe, And,
+
 
     StringType, NumberType, BooleanType, VoidType, AnyType, NeverType,
 
@@ -27,6 +38,8 @@ enum class TokenEnum {
 
     Equal, LessThan, GreaterThan,
     Plus, Minus, Asterisk, Slash,
+    PlusEqual, MinusEqual,
+    AsteriskEqual, SlashEqual,
     EqualEqual, NotEqual, LessThanOrEqual, GreaterThanOrEqual,
     LogicalAnd, LogicalOr, Not,
 
@@ -38,9 +51,12 @@ enum class TokenEnum {
 
     LeftCurlyBrace, RightCurlyBrace,
     LeftParen, RightParen,
+    LeftSquareBrace, RightSquareBrace,
     Comma,
 
-    SingleLineComment, MultiLineComment,
+    EOF, NewLine,
 
     Unknown,
+
+    Print,
 }

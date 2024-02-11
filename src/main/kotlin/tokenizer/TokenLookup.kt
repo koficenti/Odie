@@ -1,7 +1,7 @@
-package today.astrum
+package today.astrum.tokenizer
 
 object TokenLookup {
-    private val table = hashMapOf<String, TokenEnum>(
+    private val keywords = hashMapOf<String, TokenEnum>(
         "for" to TokenEnum.For,
         "while" to TokenEnum.While,
         "if" to TokenEnum.If,
@@ -20,15 +20,13 @@ object TokenLookup {
         "public" to TokenEnum.Public,
         "private" to TokenEnum.Private,
         "protected" to TokenEnum.Protected,
-        "\"" to TokenEnum.DoubleQuote,
-        "'" to TokenEnum.SingleQuote,
         "string" to TokenEnum.StringType,
         "void" to TokenEnum.VoidType,
         "number" to TokenEnum.NumberType,
         "boolean" to TokenEnum.BooleanType,
         "any" to TokenEnum.AnyType,
         "never" to TokenEnum.NeverType,
-        "|" to TokenEnum.Pipe,
+        "undefined" to TokenEnum.UndefinedLiteral,
         "enum" to TokenEnum.Enum,
         "interface" to TokenEnum.Interface,
         "type" to TokenEnum.Type,
@@ -36,39 +34,17 @@ object TokenLookup {
         "import" to TokenEnum.Import,
         "export" to TokenEnum.Export,
         "as" to TokenEnum.As,
-        "=" to TokenEnum.Equal,
-        ">" to TokenEnum.GreaterThan,
-        "<" to TokenEnum.LessThan,
-        "+" to TokenEnum.Plus,
-        "-" to TokenEnum.Minus,
-        "*" to TokenEnum.Asterisk,
-        "/" to TokenEnum.Slash,
-        "==" to TokenEnum.EqualEqual,
-        "!" to TokenEnum.Not,
-        "!=" to TokenEnum.NotEqual,
-        ">=" to TokenEnum.GreaterThanOrEqual,
-        "<=" to TokenEnum.LessThanOrEqual,
-        "`" to TokenEnum.Backtick,
-        ":" to TokenEnum.Colon,
-        ";" to TokenEnum.SemiColon,
-        "=>" to TokenEnum.Arrow,
-        "&" to TokenEnum.And,
-        "&&" to TokenEnum.LogicalAnd,
-        "||" to TokenEnum.LogicalOr,
-        "?" to TokenEnum.QuestionMark,
-        "++" to TokenEnum.Increment,
-        "--" to TokenEnum.Decrement,
-        "." to TokenEnum.Dot,
-        "{" to TokenEnum.LeftCurlyBrace,
-        "}" to TokenEnum.RightCurlyBrace,
-        "(" to TokenEnum.LeftParen,
-        ")" to TokenEnum.RightParen,
-        "," to TokenEnum.Comma,
-        "//" to TokenEnum.SingleLineComment,
-        "/*" to TokenEnum.MultiLineComment,
-        "*/" to TokenEnum.MultiLineComment)
-    fun find(str: String): TokenEnum {
-        this.table.get(str)?.let {
+        "null" to TokenEnum.NullLiteral,
+        "break" to TokenEnum.Break,
+        "continue" to TokenEnum.Continue,
+        "true" to TokenEnum.TrueLiteral,
+        "false" to TokenEnum.FalseLiteral,
+        "print" to TokenEnum.Print,
+        "{}" to TokenEnum.ObjectLiteral,
+    )
+
+    fun findKeyword(str: String): TokenEnum {
+        keywords.get(str)?.let {
             return it
         }
         return TokenEnum.Unknown

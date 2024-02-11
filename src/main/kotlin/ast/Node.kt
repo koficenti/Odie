@@ -1,3 +1,2 @@
-package today.astrum.lexer
-
+package today.astrum.ast
 sealed class Node
