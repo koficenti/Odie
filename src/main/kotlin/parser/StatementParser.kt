@@ -95,18 +95,6 @@ class StatementParser : ExpressionParser() {
         return type
     }
 
-
-    private fun parseAssignment(): Statement {
-        val id = consume(TokenEnum.Identifier, "Expected Identifier at ${previous().position}")
-        val left = previous()
-        expect(TokenEnum.Equal)
-
-        val result = parseExpression()
-
-
-        return Statement.VariableAssignment(name = id.value, leftToken = left, rightToken = previous(), value = result)
-    }
-
     private fun parseVariableDeclaration(): Statement {
 
         val kind = when (previous().type) {
@@ -148,12 +136,12 @@ class StatementParser : ExpressionParser() {
         val statements = mutableListOf<Statement>()
         expect(TokenEnum.LeftCurlyBrace)
 
-        while (match(TokenEnum.NewLine)) continue
+        skipNewLine()
 
         if (!check(TokenEnum.RightCurlyBrace)) {
             while (!check(TokenEnum.RightCurlyBrace)) {
                 statements.add(parseStatement())
-                while (match(TokenEnum.NewLine)) continue
+                skipNewLine()
 
             }
         }
@@ -162,96 +150,15 @@ class StatementParser : ExpressionParser() {
         return Statement.Block(statements)
     }
 
-    private fun parsePrintStatement(): Statement {
-        expect(TokenEnum.LeftParen)
-
-        val result = Statement.PrintStatement(parseExpression(), previous())
-
-        expect(TokenEnum.RightParen)
-
-        checkValidEnd()
-
-        return result
-    }
-
     private fun parseStatements(): Statement.Block {
         val statements = mutableListOf<Statement>()
 
-        while (match(TokenEnum.NewLine)) continue
+        skipNewLine()
         while (!hasEnded()) {
             statements.add(parseStatement())
-            while (match(TokenEnum.NewLine)) continue
+            skipNewLine()
         }
         return Statement.Block(statements)
-    }
-
-    private fun parsePropertyAccess(left: Expression): Statement {
-        expect(TokenEnum.Dot)
-        val right = parseExpression()
-
-        return Statement.ExpressionStatement(
-            Expression.PropertyAccess(left, right, previous()), previous()
-        )
-    }
-
-    private fun parseForStatement(): Statement {
-        expect(TokenEnum.LeftParen)
-        match(TokenEnum.Let, TokenEnum.Var)
-        val variable = parseVariableDeclaration() as Statement.VariableDeclaration
-        val condition = parseExpression()
-        expect(TokenEnum.SemiColon)
-
-        val assignment = if(checkNext(TokenEnum.Increment)) {
-            parseIncrement() as Statement.VariableAssignment
-        } else if(checkNext(TokenEnum.Decrement)) {
-            parseDecrement() as Statement.VariableAssignment
-        } else {
-            parseAssignment() as Statement.VariableAssignment
-        }
-
-        expect(TokenEnum.RightParen)
-
-        val block = parseBlock()
-
-        match(TokenEnum.SemiColon)
-
-        return Statement.ForLoopStatement(condition, variable, assignment, block)
-    }
-
-    private fun parseIncrement(): Statement {
-        val id = peek()
-        expect(TokenEnum.Identifier)
-        expect(TokenEnum.Increment)
-        val expression = Expression.Binary(
-            Expression.Identifier(id.value, id),
-            Token(previous().value, type = TokenEnum.Plus, position = previous().position, length = 2),
-            Expression.Literal(TokenEnum.NumberLiteral, 1)
-        )
-        match(TokenEnum.SemiColon)
-        return Statement.VariableAssignment(
-            leftToken = id,
-            name = id.value,
-            rightToken = previous(),
-            value = expression
-        )
-    }
-
-    private fun parseDecrement(): Statement {
-        val id = peek()
-        expect(TokenEnum.Identifier)
-        expect(TokenEnum.Decrement)
-        val expression = Expression.Binary(
-            Expression.Identifier(id.value, id),
-            Token(previous().value, type = TokenEnum.Minus, position = previous().position, length = 2),
-            Expression.Literal(TokenEnum.NumberLiteral, 1)
-        )
-        match(TokenEnum.SemiColon)
-        return Statement.VariableAssignment(
-            leftToken = id,
-            name = id.value,
-            rightToken = previous(),
-            value = expression
-        )
     }
 
     private fun parseIndexAssignment(): Statement {
@@ -265,22 +172,112 @@ class StatementParser : ExpressionParser() {
         return Statement.IndexAssignment(index = index, leftToken = id, value = result)
     }
 
+    private fun parseWhileStatement(): Statement {
+        val start_token = previous() // For enriching error messages later
+        expect(TokenEnum.LeftParen)
+        val condition = parseExpression()
+        expect(TokenEnum.RightParen)
+        val body = parseStatement()
+
+        return Statement.WhileLoopStatement(condition, body, start_token)
+    }
+
+    private fun parseForStatement(): Statement {
+        val start_token = previous()
+
+        expect(TokenEnum.LeftParen)
+
+        val init: Statement? = if(match(TokenEnum.SemiColon)){
+            null
+        } else if(match(TokenEnum.Let, TokenEnum.Var)){
+            parseVariableDeclaration()
+        } else {
+            Statement.ExpressionStatement(parseExpression(), previous())
+        }
+
+        val condition = if(!check(TokenEnum.SemiColon)){
+            parseExpression()
+        } else {
+            null
+        }
+
+        expect(TokenEnum.SemiColon)
+
+        val increment = if(!check(TokenEnum.RightParen)){
+            parseExpression()
+        } else {
+            null
+        }
+
+        expect(TokenEnum.RightParen)
+
+        var body: Statement? = null
+
+        if(increment != null){
+            body = Statement.Block(
+                listOf(parseStatement(), Statement.ExpressionStatement(increment, previous()))
+            )
+        } else {
+            body = parseStatement()
+        }
+
+        if(condition != null){
+            body = Statement.WhileLoopStatement(condition, body, start_token)
+        }
+
+        if(init != null) {
+            body = Statement.Block(
+                listOf(init, body)
+            )
+        }
+
+        return body
+    }
+
+    private fun parseClass(): Statement {
+        val id = consume(TokenEnum.Identifier, "Expected identifier at ${peek().position}")
+        skipNewLine()
+        expect(TokenEnum.LeftCurlyBrace)
+        val methods = mutableListOf<Statement.FunctionDeclaration>()
+        skipNewLine()
+        while(!check(TokenEnum.RightCurlyBrace) && !hasEnded()){
+            skipNewLine()
+            methods.add(parseFunction())
+            skipNewLine()
+        }
+
+        expect(TokenEnum.RightCurlyBrace)
+
+        return Statement.Class(id, methods, null)
+    }
+
     private fun parseStatement(): Statement {
-        while (match(TokenEnum.NewLine)) continue
+        skipNewLine()
 
         return when {
+            match(TokenEnum.Class) -> parseClass()
             match(TokenEnum.For) -> parseForStatement()
-            match(TokenEnum.Print) -> parsePrintStatement()
+            match(TokenEnum.While) -> parseWhileStatement()
             match(TokenEnum.Let, TokenEnum.Const, TokenEnum.Var) -> parseVariableDeclaration()
             match(TokenEnum.If) -> parseIfStatement()
-            match(TokenEnum.Function) -> parseFunction()
+            check(TokenEnum.Function) -> {
+                if(checkNext(TokenEnum.Identifier)){
+                    expect(TokenEnum.Function)
+                    return parseFunction()
+                }
+                return Statement.ExpressionStatement(parseExpression(), peek())
+            }
             match(TokenEnum.Return) -> parseReturn()
-            check(TokenEnum.LeftCurlyBrace) -> {
-                if (checkNext(TokenEnum.Identifier) && tokens.count() > current + 2) {
-                    if (tokens[current + 2].type == TokenEnum.Colon) {
+            match(TokenEnum.LeftCurlyBrace) -> {
+                val previous = current - 1
+                skipNewLine()
+                if (match(TokenEnum.Identifier)) {
+                    if (match(TokenEnum.Colon)) {
+                        current = previous
                         return Statement.ExpressionStatement(parseExpression(), previous())
                     }
                 }
+                current = previous
                 if (checkNext(TokenEnum.RightCurlyBrace)) {
                     expect(TokenEnum.LeftCurlyBrace)
                     expect(TokenEnum.RightCurlyBrace)
@@ -290,9 +287,6 @@ class StatementParser : ExpressionParser() {
             }
 
             check(TokenEnum.EOF) -> Statement.Empty()
-            check(TokenEnum.Identifier) && checkNext(TokenEnum.Equal) -> parseAssignment()
-            check(TokenEnum.Identifier) && checkNext(TokenEnum.Increment) -> parseIncrement()
-            check(TokenEnum.Identifier) && checkNext(TokenEnum.Decrement) -> parseDecrement()
             !hasEnded() -> {
                 val previous = current
                 if(match(TokenEnum.Identifier)) {
@@ -313,9 +307,7 @@ class StatementParser : ExpressionParser() {
                 current = previous
 
                 val expression = Statement.ExpressionStatement(parseExpression(), previous())
-                if (check(TokenEnum.Dot)) {
-                    return parsePropertyAccess(expression.expression)
-                }
+
                 return expression
             }
 
@@ -326,6 +318,9 @@ class StatementParser : ExpressionParser() {
 
     // Extra Helpers
 
+    private fun skipNewLine(){
+        while (match(TokenEnum.NewLine)) continue
+    }
     private fun checkNext(type: TokenEnum): Boolean {
         if (current + 1 < tokens.count()) {
             return tokens[current + 1].type == type

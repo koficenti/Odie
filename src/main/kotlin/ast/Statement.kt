@@ -42,17 +42,6 @@ sealed class Statement : Node() {
         }
     }
 
-    data class VariableAssignment(
-        val name: String,
-        val leftToken: Token,
-        val rightToken: Token,
-        val value: Expression,
-    ) : Statement() {
-        override fun accept(visitor: StatementVisitor): Any {
-            return visitor.visit(this)
-        }
-    }
-
     data class IndexAssignment(
         val index: Expression,
         val leftToken: Token,
@@ -89,16 +78,16 @@ sealed class Statement : Node() {
         }
     }
 
-    data class ForLoopStatement(
+    data class WhileLoopStatement(
         val condition: Expression,
-        val variable: VariableDeclaration,
-        val assignment: VariableAssignment?,
-        val thenBranch: Statement,
+        val body: Statement,
+        val token: Token,
     ) : Statement() {
         override fun accept(visitor: StatementVisitor): Any {
             return visitor.visit(this)
         }
     }
+
     data class ReturnStatement(
         val value: Statement
     ) : Statement() {
@@ -107,17 +96,18 @@ sealed class Statement : Node() {
         }
     }
 
-    data class PrintStatement(
-        val value: Expression,
-        val token: Token,
+    data class Object(
+        val properties: HashMap<String, Statement>
     ) : Statement() {
         override fun accept(visitor: StatementVisitor): Any {
             return visitor.visit(this)
         }
     }
 
-    data class Object(
-        val properties: HashMap<String, Statement>
+    data class Class(
+        val token: Token,
+        val methods: List<FunctionDeclaration>?,
+        val variables: List<Expression.VariableAssignment>?
     ) : Statement() {
         override fun accept(visitor: StatementVisitor): Any {
             return visitor.visit(this)

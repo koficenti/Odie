@@ -1,5 +1,6 @@
 package today.astrum.ast
 
+import today.astrum.function.Function
 import today.astrum.tokenizer.Token
 import today.astrum.tokenizer.TokenEnum
 import today.astrum.visitor.ExpressionVisitor
@@ -53,10 +54,25 @@ sealed class Expression : Node() {
         }
     }
 
-    data class FunctionCall(
-        val name: String,
+    data class This(val token: Token) : Expression() {
+        override fun accept(visitor: ExpressionVisitor): Any {
+            return visitor.visit(this)
+        }
+    }
+
+    data class AnonymousFunction(
         val token: Token,
-        val parameter: List<Expression>
+        val source: Statement.Block,
+    ) : Expression() {
+        override fun accept(visitor: ExpressionVisitor): Any {
+            return visitor.visit(this)
+        }
+    }
+
+    data class FunctionCall(
+        val callee: Expression,
+        val token: Token,
+        val arguments: List<Expression>
     ) : Expression() {
         override fun accept(visitor: ExpressionVisitor): Any {
             return visitor.visit(this)
@@ -73,10 +89,18 @@ sealed class Expression : Node() {
         }
     }
 
-    data class PropertyAccess(
-        val left: Expression,
-        val right: Expression,
-        val token: Token
+    data class Get(
+        val obj: Expression,
+        val name: Token,
+    ) : Expression() {
+        override fun accept(visitor: ExpressionVisitor): Any {
+            return visitor.visit(this)
+        }
+    }
+    data class Set(
+        val name: Token,
+        val obj: Expression,
+        val value: Expression,
     ) : Expression() {
         override fun accept(visitor: ExpressionVisitor): Any {
             return visitor.visit(this)
@@ -84,8 +108,18 @@ sealed class Expression : Node() {
     }
 
     data class ObjectLiteral(
-        val properties: HashMap<String, Expression>
+        val properties: HashMap<String, Any>
     ) : Expression() {
+        override fun accept(visitor: ExpressionVisitor): Any {
+            return visitor.visit(this)
+        }
+    }
+
+    data class VariableAssignment(
+        val name: String,
+        val left: Token,
+        val right: Expression,
+    ) : Expression(){
         override fun accept(visitor: ExpressionVisitor): Any {
             return visitor.visit(this)
         }

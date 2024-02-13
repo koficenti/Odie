@@ -4,7 +4,14 @@ import today.astrum.tokenizer.Token
 
 class Scope {
     private var enclosing: Scope? = null
-    private val variables = hashMapOf<String, Any?>()
+    val variables = hashMapOf<String, Any?>()
+
+    fun define(name: String, value: Any?) {
+        if(variables.containsKey(name)){
+            throw Error("Cannot create variable ${name}")
+        }
+        variables[name] = value
+    }
     fun define(token: Token, value: Any?) {
         if(variables.containsKey(token.value)){
             throw Runtime.Error(token, "'${token.value}' already exist! ${token.position}")
@@ -33,16 +40,16 @@ class Scope {
     }
 
     fun getAt(distance: Int, name: String?): Any {
-        return ancestor(distance).variables.get(name)!!
+        return ancestor(distance).variables.get(name) ?: throw Error("getAt() in Scope.kt")
     }
 
     fun assignAt(distance: Int, name: Token, value: Any?) {
         ancestor(distance).variables.put(name.value, value)
     }
 
-    fun ancestor(distance: Int): Scope {
+    private fun ancestor(distance: Int): Scope {
         var environment: Scope = this
-        for (i in 0 until distance) {
+        for (i in 0 until distance - 1) { // Hopefully is correct :)
             environment = environment.enclosing!!
         }
 

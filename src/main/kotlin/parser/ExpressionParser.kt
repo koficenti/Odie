@@ -1,8 +1,10 @@
 package today.astrum.parser
 
+import StatementParser
 import today.astrum.ast.Expression
 import today.astrum.ast.Node
-import today.astrum.ast.Parameter
+import today.astrum.ast.Statement
+import today.astrum.function.Function
 import today.astrum.tokenizer.Token
 import today.astrum.tokenizer.TokenEnum
 
@@ -25,7 +27,27 @@ open class ExpressionParser() : Parser() {
     }
 
     protected fun parseExpression(): Expression {
-        return equality() // ==, !=, >=, <=
+        return assignment() // ==, !=, >=, <=
+    }
+
+    private fun assignment(): Expression{
+        val expr = equality()
+
+        if(match(TokenEnum.Equal)){
+            val token = previous()
+            val value = assignment()
+
+            if(expr is Expression.Identifier){
+                val name = expr.name
+                return Expression.VariableAssignment(name, expr.token, value)
+            } else if(expr is Expression.Get){
+                return Expression.Set(expr.name, expr.obj, value)
+            }
+
+            throw Error("Invalid assignment target")
+        }
+
+        return expr
     }
 
     private fun equality(): Expression {
@@ -74,14 +96,10 @@ open class ExpressionParser() : Parser() {
     private fun factor(): Expression {
         var expr: Expression = unary()
 
-        while (match(TokenEnum.Slash, TokenEnum.Asterisk, TokenEnum.Dot)) {
+        while (match(TokenEnum.Slash, TokenEnum.Asterisk)) {
             val operator = previous()
             val right = unary()
-            if (operator.type == TokenEnum.Dot) {
-                expr = Expression.PropertyAccess(left = expr, right = right, token = operator)
-            } else {
-                expr = Expression.Binary(expr, operator, right)
-            }
+            expr = Expression.Binary(expr, operator, right)
         }
 
         return expr
@@ -94,10 +112,85 @@ open class ExpressionParser() : Parser() {
 
             return Expression.Unary(operator, right)
         }
-        return primary()
+        return call()
+    }
+
+    private fun call(): Expression {
+        var expr = primary()
+        while(true){
+            if(match(TokenEnum.LeftParen)){
+                expr = finishCall(expr)
+            } else if(match(TokenEnum.Dot)){
+                val token = consume(TokenEnum.Identifier, "Expected Identifier after dot")
+                expr = Expression.Get(expr, token)
+            } else {
+                break
+            }
+        }
+        return expr
+    }
+
+    private fun finishCall(callee: Expression): Expression {
+        val arguments = mutableListOf<Expression>()
+        if(!check(TokenEnum.RightParen)){
+            do {
+                if (arguments.count() >= 255) {
+                    throw Error("Can't have more than 255 arguments. ${peek().position}");
+                }
+                arguments.add(parseExpression())
+            } while (match(TokenEnum.Comma))
+        }
+        val paren = consume(TokenEnum.RightParen, "Expected closing parenthesis at ${peek().position}")
+        return Expression.FunctionCall(callee, paren, arguments)
     }
 
     private fun primary(): Expression {
+        if(match(TokenEnum.Function)){
+            val errorToken = previous()
+            expect(TokenEnum.LeftParen)
+            expect(TokenEnum.RightParen)
+            if(match(TokenEnum.ObjectLiteral)){
+                return Expression.AnonymousFunction(errorToken, Statement.Block(listOf()))
+            }
+            expect(TokenEnum.LeftCurlyBrace)
+            val source = mutableListOf<Token>()
+
+            var stack = 0
+
+            while(true){
+                if(check(TokenEnum.LeftCurlyBrace)){
+                    stack++
+                }
+                if(check(TokenEnum.EOF)){
+                    throw Error("Expecting closing bracket but reached end of file ${errorToken.position}")
+                }
+                if(check(TokenEnum.RightCurlyBrace)){
+                        if(stack == 0) {
+                        break
+                    }
+                    stack--
+                }
+                source.add(peek())
+                advance()
+            }
+            expect(TokenEnum.RightCurlyBrace)
+
+            try {
+                source.add(Token(
+                    type = TokenEnum.EOF,
+                    length = 0,
+                    position = peek().position,
+                    value = ""
+                ))
+                val statement = Parser().parse(source)
+                return Expression.AnonymousFunction(errorToken, statement as Statement.Block)
+            } catch(e : Error){
+                throw e
+            }
+        }
+        if(match(TokenEnum.This)){
+            return Expression.This(previous())
+        }
         if (match(
                 TokenEnum.BooleanLiteral,
                 TokenEnum.NumberLiteral,
@@ -120,21 +213,6 @@ open class ExpressionParser() : Parser() {
         }
         if (match(TokenEnum.Identifier)) {
             val token = previous()
-            val parameters = mutableListOf<Expression>()
-
-            // doSomething() <- parses function calls
-            if (check(TokenEnum.LeftParen)) {
-                expect(TokenEnum.LeftParen)
-                while(!check(TokenEnum.RightParen)){
-                    parameters.add(parseExpression())
-
-                    if(!check(TokenEnum.RightParen)){
-                        expect(TokenEnum.Comma)
-                    }
-                }
-                expect(TokenEnum.RightParen)
-                return Expression.FunctionCall(name = token.value, token, parameters)
-            }
 
             // data[0] <- parses indexing
 
@@ -163,7 +241,7 @@ open class ExpressionParser() : Parser() {
             return Expression.Literal(TokenEnum.ListLiteral, list)
         }
         if (checkIfObject()) {
-            val properties = hashMapOf<String, Expression>()
+            val properties = hashMapOf<String, Any>()
 
             while (!check(TokenEnum.RightCurlyBrace)) {
                 skipWhitespace()
@@ -198,16 +276,12 @@ open class ExpressionParser() : Parser() {
         return false
     }
 
-    private fun isLiteral(): Boolean{
-        return check(TokenEnum.BooleanLiteral,
-            TokenEnum.NumberLiteral,
-            TokenEnum.FloatLiteral,
-            TokenEnum.StringLiteral,
-            TokenEnum.TrueLiteral,
-            TokenEnum.FalseLiteral,
-            TokenEnum.ObjectLiteral,
-            TokenEnum.NullLiteral,
-            TokenEnum.UndefinedLiteral)
+    private fun checkValidEnd() {
+        if (!match(TokenEnum.SemiColon, TokenEnum.NewLine) && peek().type != TokenEnum.EOF) {
+            if (!check(TokenEnum.RightCurlyBrace)) {
+                throw Error("Expects either semicolon, newline, or eof after assignment statement! ${peek().position}")
+            }
+        }
     }
 
     override fun parse(tokens: List<Token>): Node {

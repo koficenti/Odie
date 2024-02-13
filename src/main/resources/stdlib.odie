@@ -1,0 +1,20 @@
+
+class Console {
+    log(value){
+        print(value)
+    }
+}
+
+const console = Console()
+
+class Array {
+    constructor(value){
+        this.value = value
+    }
+}
+
+class String {
+    constructor(value){
+        this.value = value
+    }
+}

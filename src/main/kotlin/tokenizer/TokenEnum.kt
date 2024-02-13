@@ -34,7 +34,7 @@ enum class TokenEnum {
     Import, Export,
     As,
 
-    Class, Implements, Extends, Public, Private, Protected,
+    Class, Extends, Public, Private, Protected, This,
 
     Equal, LessThan, GreaterThan,
     Plus, Minus, Asterisk, Slash,
@@ -57,6 +57,4 @@ enum class TokenEnum {
     EOF, NewLine,
 
     Unknown,
-
-    Print,
 }

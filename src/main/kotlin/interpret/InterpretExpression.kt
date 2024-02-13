@@ -135,7 +135,11 @@ open class InterpretExpression : ExpressionVisitor {
         return node.literal ?: throw Error("Expected literal?")
     }
 
-    override fun visit(node: Expression.PropertyAccess): Any {
+    override fun visit(node: Expression.Set): Any {
+        return node
+    }
+
+    override fun visit(node: Expression.Get): Any {
         return node
     }
 
@@ -148,6 +152,18 @@ open class InterpretExpression : ExpressionVisitor {
     }
 
     override fun visit(node: Expression.Index): Any {
+        return node
+    }
+
+    override fun visit(node: Expression.VariableAssignment): Any {
+        return node
+    }
+
+    override fun visit(node: Expression.This): Any {
+        return node
+    }
+
+    override fun visit(node: Expression.AnonymousFunction): Any {
         return node
     }
 }

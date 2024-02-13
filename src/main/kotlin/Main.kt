@@ -9,126 +9,109 @@ import today.astrum.interpret.ScopeResolver
 import today.astrum.parser.ExpressionParser
 import today.astrum.parser.Parser
 import today.astrum.tokenizer.Tokenizer
-import today.astrum.visitor.StatementPrinter
+import java.io.InputStream
 
-const val source = """
-    function add(x: number, y: number): number {
-        return x + y
-    }
-    
-    function remove(value){
-        value = null
-    }
-    
-    const test: number = 100.0
-    const test2: number = 100
-    
-    var result = 0
-    
-    var watermelon
-    
-    var tuna: boolean
-    
-    if(test > test2){
-        result = test
-    } else if(test == test2) {
-        result = 0
+//import today.astrum.visitor.StatementPrinter
+
+
+fun readFileFromResources(fileName: String): String {
+    val inputStream: InputStream? = object {}.javaClass.getResourceAsStream("/$fileName")
+
+    if (inputStream == null) {
+        throw IllegalArgumentException("File not found: $fileName")
     } else {
-        result = test2
+        return inputStream.bufferedReader().use { it.readText() }
     }
-    
-    var obj = {
-        name: "string",
-        address: "other string"
-    }
-    
-    obj = {
-        name: "different string",
-        address: "other different string"
-    }
-    
-    print("Hello")
-    
-"""
+}
 
-val expression = """
-    let arr = [6, 7, 10, 22, 10, 2, 3, 1, 0, 0, 2, 3]
+val example = """
+   class Node {
+      constructor(value){
+        this.value = value
+        this.next = null
+      }
+   }
+   class LinkedList {
+      constructor(){
+        this.head = null
+        this.size = 0
+      }
+      append(value) {
+        if(this.head == null){
+            this.head = Node(value)
+            return
+        }
+        let node = this.head
+        while(node.next != null){
+            node = node.next
+        }
+        node.next = Node(value)
+        this.size = this.size + 1
+      }
+      remove(index){
+
+        if(this.head == null || this.size < index){
+            return false // Failed
+        }
+        if(index == 0){
+            this.head = this.head.next
+            return true // Success
+        }
+
+        let node = this.head
+        let i = 1
+
+        while(node.next != null) {
+            if(i == index){
+                node.next = node.next.next
+                return true
+            }
+            node = node.next
+            i = i + 1
+        }
+        return false
+      }
+      toString() {
+        let node = this.head
+        let str = ""
+        while(node != null){
+            str = str + node.value + " "
+            node = node.next
+        }
+        return str
+      }
+   }
+
+   let x = LinkedList()
+
+   for(let i = 0; i < 10; i = i + 1){
+       x.append(i) 
+   }
    
-    function sort_list(list){
-        function swap(x, y){
-            let tmp = list[x]
-            list[x] = list[y]
-            list[y] = tmp
-        }
-        
-        for(let sorted = false; !sorted; sorted = sorted){ // Don't have while loop yet
-            sorted = true
-            for(let i = 0; list[i] != undefined; i++){
-                if(list[i + 1] != undefined){
-                    if(list[i] > list[i+1]){
-                        swap(i, i+1)
-                        sorted = false
-                    }
-                }
-            }
- 
-        }
-    }
-    
-    sort_list(arr)
-    
-    print(arr)
-    
-    // [0.0, 0.0, 1.0, 2.0, 2.0, 3.0, 3.0, 6.0, 7.0, 10.0, 10.0, 22.0]
-    
-    
-    function add(x: number, y: number){
-        return x + y
-    }
-    
-    print(add(10, 9))
-    
-    // 19
-    
-        let data = [1, 2, 3, 4, 5, 6]
-        
-        function greaterThan(num: number){
-            function helper(other: number){
-                return other > num
-            }
-            
-            return helper
-        }
-        
-        function filter(arr, func){
-            for(let i = 0; arr[i] != undefined; i++){
-                if(func(arr[i])){
-                    print(arr[i])
-                }
-            }
-        }
-        
-        filter(data, greaterThan(3))
-        
+   print(x.toString())
+   
+   // 0.0 1.0 2.0 3.0 4.0 5.0 6.0 7.0 8.0 9.0 
+   
+   // This will run but...
+   // Currently problems with static scope checking :(
 """.trimIndent()
 fun main() {
-//    try {
-//        val tokenizer = Tokenizer()
-//        val parser = Parser()
-//
-//        val tokens = tokenizer.tokenize(source)
-//        val ast = parser.parse(tokens)
-//
-//        if(ast is Statement){
-//            ast.accept(StatementPrinter())
-//        }
-//
-//    } catch(e: Error){
-//        println(e.message)
-//    }
+    val source = StringBuilder()
 
-    val tokens = Tokenizer().tokenize(expression)
-//    println(tokens)
+    val filename = "stdlib.odie"
+    var file_contents: String? = null
+    try {
+        val value = readFileFromResources(filename)
+        file_contents = value
+    } catch (e: Error) { println(e) }
+
+    file_contents?.let {
+        source.append(it)
+    }
+
+    source.append(example)
+
+    val tokens = Tokenizer().tokenize(source.toString())
     val ast = Parser().parse(tokens);
 
 
@@ -136,9 +119,8 @@ fun main() {
         try {
             val interpreter = Interpreter()
             val resolver = ScopeResolver(interpreter)
-            resolver.resolve(ast)
+            ast.accept(resolver)
             ast.accept(interpreter)
-
         } catch(error: Runtime.Error){
             println(error.message)
         }

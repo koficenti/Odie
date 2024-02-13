@@ -1,8 +1,13 @@
 package today.astrum.interpret
 
 import today.astrum.ast.Expression
-import today.astrum.ast.Parameter
 import today.astrum.ast.Statement
+import today.astrum.function.AnonymousFunction
+import today.astrum.function.Callable
+import today.astrum.function.Function
+import today.astrum.`object`.Class
+import today.astrum.`object`.ClassInstance
+import today.astrum.parser.Parser
 import today.astrum.tokenizer.Token
 import today.astrum.tokenizer.TokenEnum
 import today.astrum.visitor.StatementVisitor
@@ -10,9 +15,47 @@ import today.astrum.visitor.StatementVisitor
 
 class Interpreter : InterpretExpression(), StatementVisitor {
 
-    private var scope = Scope()
+    val globals = Scope()
+    private var scope = Scope(globals)
     private val locals = HashMap<Expression, Int>()
 
+    init {
+        globals.define("print", object : Callable {
+            override fun arity(): Int {
+                return 1
+            }
+
+            override fun call(interpreter: Interpreter, arguments: List<Any>): Any{
+                println(arguments[0])
+                return Expression.Undefined
+            }
+
+        } )
+
+        globals.define("readline", object : Callable {
+            override fun arity(): Int {
+                return 0
+            }
+
+            override fun call(interpreter: Interpreter, arguments: List<Any>): Any{
+                return readln()
+            }
+
+        } )
+
+        globals.define("map", object : Callable {
+            override fun arity(): Int {
+                return 2
+            }
+
+            override fun call(interpreter: Interpreter, arguments: List<Any>): Any{
+                if(arguments[0] !is List<*>) throw Error("function map: Expected list as first parameter")
+                if(arguments[1] !is Callable) throw Error("function map: Expected function as second parameter")
+                return (arguments[0] as List<Any>).map { (arguments[1] as Callable).call(interpreter, listOf(it)) }
+            }
+
+        } )
+    }
 
     fun resolve(expr: Expression, depth: Int) {
         locals.put(expr, depth)
@@ -39,7 +82,8 @@ class Interpreter : InterpretExpression(), StatementVisitor {
     }
 
     override fun visit(node: Statement.ReturnStatement): Any {
-        return node
+        val value = node.value.accept(this)
+        throw Return(if(value == Unit) Expression.Null else value)
     }
 
     override fun visit(node: Statement.ExpressionStatement): Any {
@@ -53,8 +97,36 @@ class Interpreter : InterpretExpression(), StatementVisitor {
         return super.visit(node)
     }
 
-    override fun visit(node: Statement.VariableAssignment) {
-        scope.assign(node.leftToken, node.value.accept(this))
+    override fun visit(node: Expression.VariableAssignment) {
+        val value = node.right.accept(this)
+        val distance = locals[node]
+
+        if(distance != null){
+            scope.assignAt(distance, node.left, value)
+        } else {
+            globals.assign(node.left, value)
+        }
+
+//        scope.assign(node.left, node.right.accept(this))
+
+    }
+
+    override fun visit(node: Expression.Set): Any {
+        val obj = node.obj.accept(this)
+
+        if(obj is Expression.ObjectLiteral){
+            val value = obj.properties.set(node.name.value, node.value.accept(this))
+            return Expression.Undefined
+        }
+
+        if(obj is ClassInstance){
+            val value = node.value.accept(this)
+
+            obj.set(node.name, value)
+            return value
+        }
+
+        throw Runtime.Error(node.name,"Trying to set new value on non object/class value")
     }
 
     override fun visit(node: Statement.VariableDeclaration): Any {
@@ -73,8 +145,8 @@ class Interpreter : InterpretExpression(), StatementVisitor {
     }
 
     override fun visit(node: Statement.FunctionDeclaration) {
-//        this.executeBlock(node.block.statements, Scope(scope))
-        scope.define(node.token, Triple(node.parameters, node.block, scope))
+        val function: Function = Function(node, scope, false)
+        scope.define(node.token, function)
     }
 
     override fun visit(node: Statement.Empty) {
@@ -85,28 +157,6 @@ class Interpreter : InterpretExpression(), StatementVisitor {
         return node
     }
 
-    override fun visit(node: Statement.PrintStatement): Any {
-        println(node.value.accept(this))
-        return Unit
-    }
-
-    override fun visit(node: Statement.ForLoopStatement): Any {
-        val previous = scope
-        scope = Scope(previous)
-        scope.define(node.variable.token, node.variable.initializer?.accept(this))
-        while(node.condition.accept(this) as Boolean){
-            for (statement in (node.thenBranch as Statement.Block).statements){
-                val result = statement.accept(this)
-                if(result is Statement.ReturnStatement){
-                    return result.value.accept(this)
-                }
-            }
-            node.assignment?.accept(this)
-        }
-        scope = previous
-        return Unit
-    }
-
     override fun visit(node: Statement.IndexAssignment) {
         val index = node.index.accept(this) as Number
         val data = (scope.get(node.leftToken) as MutableList<Any>)
@@ -114,28 +164,42 @@ class Interpreter : InterpretExpression(), StatementVisitor {
         scope.assign(node.leftToken, data)
     }
 
+    override fun visit(node: Statement.WhileLoopStatement) {
+        while(node.condition.accept(this) == true) {
+            node.body.accept(this)
+        }
+    }
 
-    // Confused myself on this one a bit
+    override fun visit(node: Statement.Class) {
+        scope.define(node.token, null)
+
+        val methods = hashMapOf<String, Function>()
+
+        node.methods?.forEach {
+            val function = Function(it, scope, it.token.value.equals("constructor"))
+            methods[it.name] = function
+        }
+
+        val klass = Class(node.token.value, methods)
+        scope.assign(node.token, klass)
+    }
+
+
     override fun visit(node: Expression.FunctionCall): Any {
-        // Retrieve the function definition from the scope
-        val func = scope.get(node.token) as Triple<List<Parameter>, Statement.Block, Scope>
+        val callee = node.callee.accept(this)
+        val arguments = mutableListOf<Any>()
 
-        // Check if the number of provided arguments matches the number of expected parameters
-        if (func.first.size != node.parameter.size) {
-            throw Runtime.Error(node.token, "Incorrect number of parameters provided for function call!")
+        for (argument in node.arguments){
+            arguments.add(argument.accept(this))
         }
 
-        // Create a new scope for the function call, inheriting from the outer scope
-        val functionScope = Scope(func.third)
+        if(callee !is Callable) throw Runtime.Error(node.token, "Not Callable!")
 
-        // Bind the provided arguments to their corresponding parameters in the new scope
-        func.first.forEachIndexed { index, parameter ->
-            val argumentValue = node.parameter[index].accept(this)
-            functionScope.define(parameter.leftToken, argumentValue)
-        }
+        val function: Callable = callee
 
-        // Execute the function body with the new scope
-        return executeBlock(func.second.statements, functionScope, insideFunction = true)
+        if(function.arity() != arguments.count()) throw Runtime.Error(node.token, "Expected matching arguments")
+
+        return function.call(this, arguments)
     }
 
 
@@ -156,43 +220,57 @@ class Interpreter : InterpretExpression(), StatementVisitor {
         throw Runtime.Error(node.token,"Invalid Indexing!")
     }
 
-    override fun visit(node: Expression.PropertyAccess): Any{
-        val left = node.left.accept(this)
+    override fun visit(node: Expression.Get): Any{
+        val left = node.obj.accept(this)
+
+        if (left is ClassInstance){
+            return left.get(node.name)
+        }
         if (left is Expression.ObjectLiteral){
-            if(node.right is Expression.Identifier){
-                left.properties.get(node.right.name)?.let {
-                    return it.accept(this)
-                }
+            left.properties.get(node.name.value)?.let {
+                return it
             }
+        }
+
+        when(left) {
+            is List<*> ->
+                return wrapLiteral("Array", left, node.name)
+
+            is String ->
+                return wrapLiteral("String", left, node.name)
+
+            else -> {}
         }
         throw Error("Invalid Property Access Operation")
     }
     override fun visit(node: Expression.Identifier): Any {
-        scope.get(node.token)?.let {
-            return it
-        }
-        throw Runtime.Error(node.token, "Variable does not exist '${node.name}'.")
+        return lookUpVariable(node.token, node)
     }
 
-    private fun executeBlock(statements: List<Statement>, scope: Scope, insideFunction: Boolean = false): Any {
+    override fun visit(node: Expression.This): Any {
+        return lookUpVariable(node.token, node)
+    }
+
+    override fun visit(node: Expression.AnonymousFunction): Any {
+        return AnonymousFunction(node.source, scope)
+    }
+
+    fun wrapLiteral(className: String, value: Any,  node: Token): Any {
+        return (scope.getAt(0, className) as Class).call(this, listOf(value)).get(node)
+    }
+    fun executeBlock(statements: List<Statement>, scope: Scope): Any {
         val previousScope = this.scope
-        var returnValue: Any? = null
 
         try {
             this.scope = scope
 
             for (statement in statements) {
-                val result = statement.accept(this)
-
-                if (result is Statement.ReturnStatement) {
-                    returnValue = result.value.accept(this)
-                    if (!insideFunction) break // Break only if not inside a function
-                }
+                statement.accept(this)
             }
         } finally {
             this.scope = previousScope
         }
 
-        return returnValue ?: Unit
+        return Unit
     }
 }

@@ -15,7 +15,6 @@ object TokenLookup {
         "catch" to TokenEnum.Catch,
         "finally" to TokenEnum.Finally,
         "class" to TokenEnum.Class,
-        "implements" to TokenEnum.Implements,
         "extends" to TokenEnum.Extends,
         "public" to TokenEnum.Public,
         "private" to TokenEnum.Private,
@@ -39,8 +38,8 @@ object TokenLookup {
         "continue" to TokenEnum.Continue,
         "true" to TokenEnum.TrueLiteral,
         "false" to TokenEnum.FalseLiteral,
-        "print" to TokenEnum.Print,
         "{}" to TokenEnum.ObjectLiteral,
+        "this" to TokenEnum.This
     )
 
     fun findKeyword(str: String): TokenEnum {
