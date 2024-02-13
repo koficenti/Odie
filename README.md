@@ -10,9 +10,11 @@
 - return keyword
 - for loops (traditional)
 - blocks { }
+- automatic primitive wrapping (so Number(0.0) or String("example")) when using dot operator
 - arrays literals and indexing (set or get) with some bound checks
 - undefined and null, array out of bounds will give undefined when indexing
 - does parse some types but doesn't do anything with them yet!
+- basic class support (also 'this' keyword works)
 - ##### conditions
   - false && doSomething() <- will never run! (probably one of my favorite features)
   - ==, !=, >=, <=, >, <
@@ -20,88 +22,88 @@
 #### Example of what can be run as of now
 ```typescript
 
-let arr = [6, 7, 10, 22, 10, 2, 3, 1, 0, 0, 2, 3]
+class Node {
+  constructor(value){
+    this.value = value
+    this.next = null
+  }
+}
+class LinkedList {
+  constructor(){
+    this.head = null
+    this.size = 0
+  }
+  append(value) {
+    if(this.head == null){
+      this.head = Node(value)
+      return
+    }
+    let node = this.head
+    while(node.next != null){
+      node = node.next
+    }
+    node.next = Node(value)
+    this.size = this.size + 1
+  }
+  remove(index){
 
-function sort_list(list) {
-    function swap(x, y) {
-        let tmp = list[x]
-        list[x] = list[y]
-        list[y] = tmp
+    if(this.head == null || this.size < index){
+      return false // Failed
+    }
+    if(index == 0){
+      this.head = this.head.next
+      return true // Success
     }
 
-    for (let sorted = false; !sorted; sorted = sorted) { // Don't have while loop yet
-        sorted = true
-        for (let i = 0; list[i] != undefined; i++) {
-            if (list[i + 1] != undefined) {
-                if (list[i] > list[i + 1]) {
-                    swap(i, i + 1)
-                    sorted = false
-                }
-            }
-        }
+    let node = this.head
+    let i = 1
 
+    while(node.next != null) {
+      if(i == index){
+        node.next = node.next.next
+        return true
+      }
+      node = node.next
+      i = i + 1
     }
-}
-
-sort_list(arr)
-
-print(arr)
-
-// [0.0, 0.0, 1.0, 2.0, 2.0, 3.0, 3.0, 6.0, 7.0, 10.0, 10.0, 22.0]
-
-
-function add(x: number, y: number){
-    return x + y
-}
-
-print(add(10, 9))
-
-// 19
-
-let data = [1, 2, 3, 4, 5, 6]
-
-function greaterThan(num: number){
-    function helper(other: number){
-        return other > num
+    return false
+  }
+  toString() {
+    let node = this.head
+    let str = ""
+    while(node != null){
+      str = str + node.value + " "
+      node = node.next
     }
-
-    return helper
+    return str
+  }
 }
 
-function filter(arr, func){
-    for(let i = 0; arr[i] != undefined; i++){
-        if(func(arr[i])){
-            print(arr[i])
-        }
-    }
+let x = LinkedList()
+
+for(let i = 0; i < 10; i = i + 1){
+  x.append(i)
 }
 
-filter(data, greaterThan(3))
+print(x.toString())
 
-// 4.0, 5.0, 6.0
+// 0.0 1.0 2.0 3.0 4.0 5.0 6.0 7.0 8.0 9.0 
 
-const project = {
-    name: "Odie",
-    version: "0.0.1"
-}
-
-print(project.name + " -- " + project.version)
-
-// Odie -- 0.0.1
+// This will run but...
+// Currently problems with static scope checking :(
 
 ```
 
 ### TODO
 
-- advanced scoping (scope resolution / static scope checking)
-- automatic primitive wrapping (so Number(0.0) or String("example")) when using dot operator
+- advanced scoping (scope resolution / static scope checking) *partially done
 - const as immutable
 - more array features
-- object property assignments
 - eventually some basic type checking
-- while loop and switch statements
+- switch statements
 - ternary operator ( true ? action() : never() )
 - better error handling
+- improve syntax handling (handling newlines and semicolons better for example)
 - testing (most definitely going to be 'unknown' bugs)
 - a ton of other stuff
 
